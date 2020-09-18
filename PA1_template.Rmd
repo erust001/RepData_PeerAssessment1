@@ -6,20 +6,33 @@ output:
 ---
 
 
-## Loading and preprocessing the data
+### Loading and preprocessing the data
+Using read_csv from readr package which automatically
+format dates
+```{r message=FALSE}
+library(tidyverse)
+url<-"https://d396qusza40orc.cloudfront.net/repdata%2Fdata%2Factivity.zip" 
+
+if(!file.exists("rawzip.zip")){
+  download.file(url,destfile="rawzip.zip")
+}
+unzip("rawzip.zip")
+my_data<-read_csv("activity.csv")
+```
+Structure of the data  
+```{r}
+str(my_data)
+```
+### What is mean total number of steps taken per day?
 
 
 
-## What is mean total number of steps taken per day?
+### What is the average daily activity pattern?
 
 
 
-## What is the average daily activity pattern?
+### Imputing missing values
 
 
 
-## Imputing missing values
-
-
-
-## Are there differences in activity patterns between weekdays and weekends?
+### Are there differences in activity patterns between weekdays and weekends?
