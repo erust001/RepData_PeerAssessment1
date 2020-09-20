@@ -408,7 +408,7 @@ ggplot(new_data)+geom_col(aes(date,steps,fill=weekday))+
   
 ###### Make a panel plot containing a time series plot  
   
-  
+Final plot  
 
 ```r
 corrected_time_series<-new_data%>%group_by(interval,weekday)%>%
