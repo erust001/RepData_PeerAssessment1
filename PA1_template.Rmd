@@ -6,11 +6,12 @@ output:
 ---
 
 
-### Loading and preprocessing the data
-Using read_csv from readr package which automatically
+### Loading and preprocessing the data  
+Using **read_csv** function from readr package which automatically
 format dates
 ```{r message=FALSE}
 library(tidyverse)
+Sys.setlocale("LC_ALL","ENGLISH")#because my systems works in Russian
 url<-"https://d396qusza40orc.cloudfront.net/repdata%2Fdata%2Factivity.zip" 
 
 if(!file.exists("rawzip.zip")){
@@ -18,21 +19,152 @@ if(!file.exists("rawzip.zip")){
 }
 unzip("rawzip.zip")
 my_data<-read_csv("activity.csv")
-```
+```  
 Structure of the data  
 ```{r}
-str(my_data)
+str(my_data)  
+```  
+### What is mean total number of steps taken per day? 
+  
+##### Calculate the total number of steps taken per day  
+  
+using **group_by** function we will group our data frame by date,
+and then using **summarise** function to find total steps per day
+```{r message=FALSE}
+steps_per_day<-my_data%>%group_by(date)%>%
+  summarise(total_steps=sum(steps))
 ```
-### What is mean total number of steps taken per day?
+```{r}
+head(steps_per_day)  
+```
+In the code above , I used **%>%** which is calles pipe. It helps to avoid writing which data to use in each function, and allows to avoid 
+nested functions  
+  
+##### Make a histogram of the total number of steps taken each day  
+Usng ggplot2 package,and **geom_col** function we can constract bar plot using original data   
+```{r}
+ggplot(my_data)+geom_col(aes(date,steps),fill="blue")+
+  ggtitle("Total number of steps taken each day")
+```  
+  
+##### Calculate and report the mean and median of the total number of steps taken per day  
+Again using **group_by** and **summarise** functions  
+```{r message=FALSE}
+mean_median_summary<-my_data%>%group_by(date)%>%
+  summarise(mean=mean(steps,na.rn=TRUE),median=median(steps,na.rm=TRUE))
+```
+```{r}
+head(mean_median_summary)
+```  
+  
+  
+### What is the average daily activity pattern?  
+##### Make a time series plot  of the 5-minute interval (x-axis) and the average number of steps taken, averaged across all days (y-axis)  
+  
+Using **group_by** and **summarise** functions,and then applying **geom_line**  
+```{r message=FALSE}
+time_series<-my_data%>%group_by(interval)%>%
+  summarise(mean=mean(steps,na.rm=TRUE))
 
+```
+```{r}
+ggplot(time_series)+geom_line(aes(interval,mean),color="blue")+
+  ggtitle("Average steps taken averaged across all days")+ylab("average")
+```
+  
+##### Which 5-minute interval, on average across all the days in the dataset, contains the maximum number of steps?  
+We actually can annotate our plot by adding vertical line(at max) using **geom_vline**  
+To find which 5 minute interval has the maximum number of steps
+we can apply **which.max** function to number of steps and then
+use that index to find max 5 minute interval
+```{r}
+steps_per_interval<-my_data%>%group_by(interval)%>%
+  summarise(average_steps=mean(steps,na.rm=TRUE))
+head(steps_per_interval)
+max_index<-which.max(steps_per_interval$average_steps)
+max_interval<-as.numeric(steps_per_interval[max_index,1])
+```
+```{r}
+ggplot(time_series)+geom_line(aes(interval,mean),color="blue")+
+  ggtitle("Average steps taken averaged across all days")+ylab("average")+
+  geom_vline(xintercept = max_interval,lty="dashed")
 
+```  
+### Imputing missing values     
+##### Calculate and report the total number of missing values in the dataset   
+To find number we can use**map** function from purr package.  
+```{r}
+map(my_data, ~sum(is.na(.)))
+```  
+##### Devise a strategy for filling in all of the missing values in the dataset.  
+I decided to change Na_s with corresponding interval average. Fisrt of all
+i will **split** steps by interval. It will create a list with name attribute coresponding to interval.
+```{r}
+splitted_steps<-split(my_data$steps,my_data$interval)
+head(splitted_steps,3)
+```
+Then using **select** function and previously applied group_by and summarise 
+i will select only steps column and then convert it vector(in order to use in iterations)  
+```{r}
+steps_per_interval_average<-my_data%>%group_by(interval)%>%
+  summarise(average_steps=mean(steps,na.rm=TRUE))%>%select(average_steps)
+interval_average<-unlist(steps_per_interval_average)
+head(interval_average)
+```  
+Using **map2** function we could create corrected list,where all NAs are replaced. **map2** function  iterate 2 objects simultaneosly. It take first argument of splitted_steps(recorded steps is 0th interval),takes fisrt argument of interval_average(average steps in 0th interval) and finally using **replace_na** replace all NAs in 0th interval with 0th interval average. And this process repeats untill all objects iterated
+  
+```{r}
+corrected_list<-map2(splitted_steps,interval_average,replace_na)
+head(corrected_list,3)
+```  
+##### Create a new dataset that is equal to the original dataset but with the missing data filled in  
 
-### What is the average daily activity pattern?
+Then we could transform this list into vector and replace steps column in my_data
+```{r}
+corrected_steps<-as.numeric(unlist(corrected_list))
+length(corrected_steps)==nrow(my_data)
+corrected_data<-my_data
+corrected_data$steps<-corrected_steps
+map(corrected_data, ~sum(is.na(.)))
+```  
+###### Make a histogram of the total number of steps taken each day and Calculate and report the mean and median total number of steps taken per day         
+Let's compare plots with and withoud missiong values using **gridExtra** package
+```{r message=FALSE}
+with_na<-ggplot(my_data)+geom_col(aes(date,steps),fill="blue")+
+  ggtitle("Total number of steps taken each day(with NA")
+without_na<-ggplot(corrected_data)+
+  geom_col(aes(date,steps),fill="red")+
+  ggtitle("Total number of steps taken each day(without NA")
+library(gridExtra)
+with_na
+grid.arrange(with_na,without_na,nrow=1)
+```
 
-
-
-### Imputing missing values
-
-
-
-### Are there differences in activity patterns between weekdays and weekends?
+### Are there differences in activity patterns between weekdays and weekends?   
+  
+##### Create a new factor variable in the dataset with two levels – “weekday” and “weekend” indicating whether a given date is a weekday or weekend day.  
+Using **wday** function from lubridate package we could numerically represents day of a week. Then by applying mutate function we could create new variable which takes 0 if "weekday" and 1 if "weekend
+```{r}
+library(lubridate)
+new_data<-mutate(corrected_data,weekday=as.numeric(wday(date)<=5))
+head(new_data)
+new_data$weekday<-factor(new_data$weekday,levels=c(0,1),
+                         labels=c("weekend","weekday"))
+head(new_data)
+```  
+Contracting new plot  
+```{r}
+ggplot(new_data)+geom_col(aes(date,steps,fill=weekday))+
+  facet_grid(.~weekday)
+```   
+  
+###### Make a panel plot containing a time series plot  
+  
+  
+```{r message=FALSE}
+corrected_time_series<-new_data%>%group_by(interval,weekday)%>%
+  summarise(mean=mean(steps,na.rm=TRUE))
+ggplot(corrected_time_series)+
+  geom_line(aes(interval,mean,color=weekday))+
+  ggtitle("Average steps taken averaged across all days")+ylab("average")+facet_grid(.~weekday)
+```
